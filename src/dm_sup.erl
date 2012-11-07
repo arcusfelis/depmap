@@ -1,5 +1,5 @@
 
--module(relatio_sup).
+-module(dm_sup).
 -behaviour(supervisor).
 
 -export([start_link/0]). %% API.

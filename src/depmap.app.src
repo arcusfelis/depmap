@@ -1,8 +1,8 @@
-{application, relatio, [
-	{description, "Web UI for xref."},
+{application, depmap, [
+	{description, "Dependency graph for Erlang."},
 	{vsn, "0.1.0"},
 	{modules, []},
-	{registered, [relatio_sup]},
+	{registered, [dm_sup]},
 	{applications, [
 		kernel,
 		stdlib,
@@ -11,9 +11,8 @@
 		ssl,
         mimetypes,
 		cowboy,
-        bullet,
         jsx
 	]},
-    {mod, {relatio, []}},
+    {mod, {depmap, []}},
 	{env, []}
 ]}.

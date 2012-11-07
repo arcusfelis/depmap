@@ -13,6 +13,10 @@
 <script type="text/javascript">
 <!--
 function init() {
+  $(".rep_gh_link").on("click.show_node_label", function(e) {
+     e.stopPropagation();
+  });
+
   var keyCodes = {
       ESCAPE: 27,
       H: 72,
@@ -50,10 +54,6 @@ function init() {
     defaultEdgeType: 'curve',
     font: 'DejaVu Sans Mono, Arial'
   }).graphProperties({
-    minNodeSize: 1,
-    maxNodeSize: 5,
-    minEdgeSize: 1,
-    maxEdgeSize: 1
   }).mouseProperties({
     maxRatio: 32,
     minRatio: 0.8
@@ -68,11 +68,6 @@ function init() {
     var node = nodes[0];
     if (!node) return;
     ratio = ratio ? ratio : 16;
-    switch (node.attr.node_type)
-    {
-        case "module":
-            ratio = 10;
-    }
 
 //  console.log("node {" + node.displayX + ", " + node.displayY + "}");
 
@@ -117,27 +112,13 @@ function init() {
       return nodes[0];
   }
 
-  sigInst.__proto__.function2moduleNode = function(functionNode) {
-    var moduleNode;
-    var fid = functionNode.id;
-    var sig = this;
-    this.iterEdges(function(e) {
-        if ((e.attr.edge_type == "mf") && (e.source == fid))
-        {
-            // var s = sig.getNodeById(e.source);
-            // s.type == "module"
-            moduleNode = sig.getNodeById(e.target);
-        }
-    });
-    return moduleNode;
-  }
 
   // elem is a DOM element.
   // node is a sigma node.
-  function nodeToHtmlLink(si, node, elem)
+  function nodeToHtmlLink(si, node, elem, label)
   {
     var nid = node.id;
-    var a = $("<a href='#'>").text(node.label);
+    var a = $("<a href='#'>").text(label ? label : node.label);
     a.off(".show_node_label");
     a.on("click.show_node_label", function(e) {
       // Capture a Shift and Click event with jQuery
@@ -158,6 +139,20 @@ function init() {
     return elem;
   }
 
+  function nodeToAuthorHtmlLink(si, node, elem, label)
+  {
+    var nid = node.id;
+    var a = $("<a>").text(label ? label : node.label);
+    a.attr("href", "https://github.com/" + authorName(node));
+    a.attr("target", "_blank");
+    elem.append(a);
+    a.on("click.show_node_label", function(e) {
+       e.stopPropagation();
+    });
+    return elem;
+  }
+
+
   // Copy color from a node or an edge to DOM element.
   function colorize(nodeOrEdge, elem)
   {
@@ -175,14 +170,22 @@ function init() {
     return ul;
   }
 
+  var authorName = function(node) {
+    var fullname = node.label;
+    return fullname.split(" ")[0];
+  }
+
+  var repositoryName = function(node) {
+    var fullname = node.label;
+    return fullname.split(" ")[1];
+  }
+
   // This function will be called, if a node was clicked.
   var activateNode = function(event) { 
     var si = event.target; 
     var ids = event.content;
     var rcpnt_node_ids      = [];
     var donor_node_ids      = [];
-    var module_node_ids     = [];
-    var function_node_ids   = [];
 
     var node_id = ids[0];
     var node = si.getNodeById(node_id);
@@ -192,28 +195,20 @@ function init() {
     var focused_elem;
 
     // Change the header
-    switch (node.attr.node_type)
-    {
-        case "module":
-            var activeHeaderBlock = $("#selected_module_elem_info").show();
-            var m_elem = $(".module_name", active_header_block).empty();
-            nodeToHtmlLink(si, node, m_elem);
-            var focused_elem = $("a", m_elem);
-            break;
+    var r_elem = $(".rep_name", active_header_block).empty();
+    nodeToHtmlLink(si, node, r_elem, repositoryName(node));
+    var focused_elem = $("a", r_elem);
 
-        // MFA
-        default:
-            var parent_node = si.function2moduleNode(node);
-            $("#selected_function_elem_info").show();
-            var fn_elem = $(".function_name", active_header_block).empty();
-            var m_elem = $(".module_name", active_header_block).empty();
-            nodeToHtmlLink(si, node, fn_elem);
-            nodeToHtmlLink(si, parent_node, m_elem);
-            var focused_elem = $("a", fn_elem);
-    }
+    var a_elem = $(".author_name", active_header_block).empty();
+    nodeToAuthorHtmlLink(si, node, a_elem, authorName(node));
+
+    $(".rep_gh_link")
+        .attr("href", "https://github.com/" + authorName(node) + 
+                      "/" + repositoryName(node))
+        .attr("target", "_blank");
 
     si.iterEdges(function(e) {
-        if (~ids.indexOf(e.source) && e.attr.edge_type != "mf") {
+        if (~ids.indexOf(e.source)) {
             // This edge is out.
             // The selected node calls the iterated node.
             donor_node_ids.push(e.target);
@@ -224,14 +219,6 @@ function init() {
             rcpnt_node_ids.push(e.source);
         }
     });
-
-    switch (node.attr.node_type)
-    {
-        case "module":
-            function_node_ids = rcpnt_node_ids;
-            rcpnt_node_ids = [];
-    }
-    
 
     if (donor_node_ids.length > 0)
     {
@@ -254,17 +241,6 @@ function init() {
     {
         $("#directions-in").hide();
     }
-
-    if (function_node_ids.length > 0)
-    {
-        var ul_in  = nodeIdsToHtml(si, function_node_ids);
-        $("#functions-list").empty().append(ul_in);
-        $("#functions").show();
-    }
-    else
-    {
-        $("#functions").hide();
-    }
     openDirectionSidebar();
 
     // Set focus
@@ -274,7 +250,7 @@ function init() {
 
   // Parse a GEXF encoded file to fill the graph
   // (requires "sigma.parseGexf.js" to be included)
-  sigInst.parseGexf('data/v-e-m.gexf');
+  sigInst.parseGexf('data/deps.gexf');
 
   // Draw the graph :
   sigInst.draw();
@@ -396,101 +372,11 @@ function init() {
   });
 
 
-  // The other canvas for a list of modules
-  var modSigInst = sigma.init(document.getElementById('graph-modules')).drawingProperties({
-    defaultLabelColor: '#fff',
-    defaultLabelSize: 14,
-    defaultLabelBGColor: '#fff',
-    defaultLabelHoverColor: '#000',
-    labelThreshold: 10,
-    defaultEdgeType: 'curve'
-  }).graphProperties({
-    minNodeSize: 0.5,
-    maxNodeSize: 5,
-    minEdgeSize: 1,
-    maxEdgeSize: 1
-  }).mouseProperties({
-    mouseEnabled: false
-  });
 
-  // Add border edges
-  modSigInst.addNode(1, {
-        'x': -1,
-        'y': -2,
-        'label' : "Left-Top",
-        hidden: true,
-        color: "#F00"
-      });
-  modSigInst.addNode(2, {
-        'x': 40,
-        'y': 25,
-        'label' : "Right-Bottom",
-        hidden: true,
-        color: "#F00"
-      });
 
   // All other nodes will have X and Y beetween -1 .. 1
   var nextModNodeId = 3;
   var firstModNodeId = 3;
-
-  // Add large nodes (modules).
-  sigInst.iterNodes(function(node) {
-    if (node.size < MIN_IMPORTANT_SIZE)
-      return; // too small
-
-    var countX = 10;
-    var countY = 20;
-    var num = nextModNodeId - firstModNodeId;
-    var numX = parseInt(num / countY); // 0 .. 10
-    var numY = num % countY;           // 0 .. 10
-    modSigInst.addNode(nextModNodeId,{
-      'x':  numX,
-      'y': numY,
-      'size': node.size,
-      'hidden': true,
-      'label': node.label,
-      'realNodeId': node.id,
-      'color': node.color
-    });
-    nextModNodeId++;
-  });
-
-  // Hide module-function edges.
-  sigInst.iterEdges(function(edge) {
-    if (edge.attr.edge_type == "mf") edge.hidden = true;
-  });
-
-   modSigInst.draw();
-
-  // By default, the events on the main node are not passed down.
-  // Add for all nodes on modules' canvas a special block above the main canvas.
-  modSigInst.iterNodes(function(node) {
-    var nid = node.id;
-    var realNid = node.attr["realNodeId"];
-    // Skip border nodes
-    if (nid < firstModNodeId)
-      return;
-    var o = addOverlayNode(node);
-    o.mouseenter(function(){ 
-        $("body").addClass("active-hover-modules");
-        modSigInst.pickNode(nid); 
-        sigInst.pickNode(realNid); 
-    });
-    o.mouseleave(function(){ 
-        $("body").removeClass("active-hover-modules");
-        modSigInst.unpickNode(nid); 
-        sigInst.unpickNode(realNid); 
-    });
-
-    o.click(function() {
-        sigInst.zoomToNode(realNid, 5);
-    });
-  });
-
-  // Add a handler for "Modules" label.
-  $("#graph-modules-link a").click(function(e) { 
-    $("body").toggleClass("active-modules");
-  });
 
   $("#graph-main canvas").each(function() {
     this.addEventListener('dblclick', resetScale);
@@ -516,58 +402,41 @@ function init() {
     var needle = e.target.value;
     var sidebar = $("#search-results");
 
+
     // skip, if it is too short
-    if (needle.length < 4) {
+    if (needle.length < 3) {
       $("body").removeClass("searching-active"); 
       return;
     }
 
-    var matched_module_node_ids = [];
-    var matched_function_node_ids = [];
+    var matched_node_ids = [];
     si.iterNodes(function(n) {
       // Is the needle a substring of the label?
       // indexOf returns -1, if not found.
       // ~-1 is 0.
-      if (~n.label.indexOf(needle))
-      {
-        switch (n.attr.node_type)
+      if (matched_node_ids.length < 100)
+        if (~n.label.indexOf(needle))
         {
-          case "module":
-            matched_module_node_ids.push(n.id);
-            break;
-          default:
-            matched_function_node_ids.push(n.id);
+          matched_node_ids.push(n.id);
         }
-      }
     });
 
 
     // Nothing was found
-    if (!matched_module_node_ids.length && !matched_function_node_ids.length) {
+    if (!matched_node_ids.length) {
         $("body").removeClass("searching-active"); 
         return;
     }
 
-    if (matched_module_node_ids.length > 0)
+    if (matched_node_ids.length > 0)
     {
-        var ul_mods = nodeIdsToHtml(si, matched_module_node_ids);
-        $("#modules-list", sidebar).empty().append(ul_mods);
-        $("#modules", sidebar).show();
+        var ul = nodeIdsToHtml(si, matched_node_ids);
+        $("#reps-list", sidebar).empty().append(ul);
+        $("#reps", sidebar).show();
     }
     else
     {
-        $("#modules", sidebar).hide();
-    }
-
-    if (matched_function_node_ids.length > 0)
-    {
-        var ul_funs = nodeIdsToHtml(si, matched_function_node_ids);
-        $("#functions-list", sidebar).empty().append(ul_funs);
-        $("#functions", sidebar).show();
-    }
-    else
-    {
-        $("#functions", sidebar).hide();
+        $("#reps", sidebar).hide();
     }
 
     $("body").addClass("searching-active"); 
@@ -580,7 +449,6 @@ function init() {
     switch (e.keyCode)
     {
       case keyCodes.ESCAPE:
-      $("#graph-modules-link a:visible").focus();
       $("body").removeClass("searching-active"); 
     }
   });
@@ -678,6 +546,17 @@ $(document).ready(init);
     display: block;
   }
 
+  .rep_name{
+    font-size: 18pt;
+    margin: 0;
+  }
+
+  .author_name{
+    font-size: 12pt;
+    margin: 0;
+    margin-bottom: 10px;
+  }
+
 
   #search-results {
     width: 300px; 
@@ -708,33 +587,19 @@ $(document).ready(init);
     display: none;
   }
 
-  #graph-directions a, #graph-modules-link a, #search-results a { 
+  #graph-directions a, #search-results a { 
       text-decoration: none;
       color: inherit;
   }
 
   #graph-directions a.header-closed,
-  #graph-modules-link a.header-closed,
   #search-results a.header-closed {
     color: #C0C0C0;
   }
   #graph-directions a.header-opened, 
-  #graph-modules-link a.header-opened,
   #search-results a.header-opened {
     color: #FFF;
-  } #graph-modules {
-    width: 500px; 
-    height: 340px; 
-    position: absolute;
-    z-index: -1;
-  }
-  #graph-modules-link { 
-    margin-left: 2px;
-    margin-top: 2px;
-    position: absolute;
-    z-index: 9001;
-    color: white;
-  }
+  } 
   html, body
   {margin: 0; padding: 0; height: 100%;}
   .disable_mouse_selection {
@@ -756,14 +621,11 @@ $(document).ready(init);
     -moz-border-radius: 5px;
     border-radius: 5px;
   }
-  .active-modules .overlay-node {
+  .active-reps .overlay-node {
     z-index: 9050;
   }
-  .active-hover-modules .overlay-node:hover {
+  .active-hover-reps .overlay-node:hover {
     z-index: 9500;
-  }
-  .active-hover-modules #graph-modules { 
-    z-index: 9200;
   }
 
   .selected_elem_info {
@@ -821,6 +683,10 @@ $(document).ready(init);
     border: 1px solid #FFF;
   }
     
+a.rep_gh_link {
+    cursor: pointer;
+    color: #CCC;
+}
 
 
 /*
@@ -928,62 +794,32 @@ $(document).ready(init);
 </head>
 <body>
   <div id="container">
-    <div id="graph-modules-link" class="disable_mouse_selection">
-      <a href="#" class="header-closed">Modules...</a>
-      <a href="#" class="header-opened">Modules:</a>
-    </div>
-    <div id="graph-modules"></div>
     <div id="graph-main"></div>
     <div id="graph-directions">
-        <div id="selected_function_elem_info" class="selected_elem_info">
-            Function <span class="function_name">FunctionName</span> 
-            <span class="misc">from 
-                <span class="module_name">ModuleName</span>
-            </span>
-        </div>
+        <h1 class="rep_name">RepName</h1>
+        <h2 class="author_name" title="Show author's profile on github.com">Author</h2>
 
-        <div id="selected_module_elem_info" class="selected_elem_info">
-            Module <span class="module_name">ModuleName</span>
-        </div>
-
-        <!--
-        <div id="modules">
-            Modules:
-            <div id="modules-list"></div>
-        </div>
-        -->
-
-        <div id="functions" class="active-block">
-            <a href="#" class="header-closed">Functions...</a>
-            <a href="#" class="header-opened">Functions:</a>
-            <div id="functions-list" class="content-block"></div>
-        </div>
+        <a class="rep_gh_link">Show code on github.com</a>
 
         <div id="directions-out" class="active-block">
-            <a href="#" class="header-closed">Calls...</a>
-            <a href="#" class="header-opened">Calls:</a>
+            <a href="#" class="header-closed">Depends on...</a>
+            <a href="#" class="header-opened">Depends on:</a>
             <div id="directions-list-out" class="content-block"></div>
         </div>
 
         <div id="directions-in" class="active-block">
-            <a href="#" class="header-closed">Called by...</a>
-            <a href="#" class="header-opened">Called by:</a>
+            <a href="#" class="header-closed">Used by...</a>
+            <a href="#" class="header-opened">Used by:</a>
             <div id="directions-list-in" class="content-block"></div>
         </div>
     </div>
 
     <div id="search-pane">
         <div id="search-results">
-            <div id="modules" class="active-block">
-                <a href="#" class="header-closed">Modules...</a>
-                <a href="#" class="header-opened">Modules:</a>
-                <div id="modules-list" class="content-block"></div>
-            </div>
-
-            <div id="functions" class="active-block">
-                <a href="#" class="header-closed">Functions...</a>
-                <a href="#" class="header-opened">Functions:</a>
-                <div id="functions-list" class="content-block" class="content-block"></div>
+            <div id="reps" class="active-block">
+                <a href="#" class="header-closed">Repositories...</a>
+                <a href="#" class="header-opened">Repositories:</a>
+                <div id="reps-list" class="content-block"></div>
             </div>
         </div>
     </div>

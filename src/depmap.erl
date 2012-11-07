@@ -1,6 +1,4 @@
-%% Feel free to use, reuse and abuse the code in this file.
-
--module(relatio).
+-module(depmap).
 -behaviour(application).
 -export([start/0, start/2, stop/1]).
 
@@ -11,24 +9,21 @@ start() ->
 	application:start(mimetypes),
 	application:start(cowboy),
 	application:start(jsx),
-	application:start(bullet),
-	application:start(relatio).
+	application:start(lager),
+	application:start(depmap).
 
 
 start(_Type, _Args) ->
-    PrivDir = code:priv_dir(relatio),
+    PrivDir = code:priv_dir(depmap),
     JsDir = abs_path(filename:join([PrivDir, "js"])),
     HtmlDir = abs_path(filename:join([PrivDir, "html"])),
     FontDir = abs_path(filename:join([PrivDir, "font"])),
-    BulletDir = abs_path(code:priv_dir(bullet)),
     StaticFilesCfg = [{mimetypes, {fun mimetypes:path_to_mimes/2, default}}],
 
 	Dispatch = [
 		{'_', [
-			{[<<"stream">>], bullet_handler, 
-                    [{handler, relatio_stream_handler}]},
-			{[<<"data">>, '...'], relatio_data_handler, []},
-			{[], relatio_default_handler, []},
+			{[<<"data">>, '...'], dm_data_handler, []},
+			{[], dm_default_handler, []},
 
             {[<<"js">>, '...'], cowboy_http_static,
                  [{directory, JsDir}|StaticFilesCfg]},
@@ -36,14 +31,11 @@ start(_Type, _Args) ->
             {[<<"font">>, '...'], cowboy_http_static,
                  [{directory, FontDir}|StaticFilesCfg]},
 
-            {[<<"bullet">>, '...'], cowboy_http_static,
-                 [{directory, BulletDir}|StaticFilesCfg]},
-
             {['...'], cowboy_http_static,
                  [{directory, HtmlDir}|StaticFilesCfg]}
 		]}
 	],
-	cowboy:start_listener(relatio_http, 100,
+	cowboy:start_listener(depmap_http, 100,
 		cowboy_tcp_transport, [{port, 2080}],
 		cowboy_http_protocol, [{dispatch, Dispatch}]
 	),
@@ -53,7 +45,7 @@ start(_Type, _Args) ->
 %   		{keyfile, "priv/ssl/key.pem"}, {password, "cowboy"}],
 %   	cowboy_http_protocol, [{dispatch, Dispatch}]
 %   ),
-	relatio_sup:start_link().
+	dm_sup:start_link().
 
 stop(_State) ->
 	ok.

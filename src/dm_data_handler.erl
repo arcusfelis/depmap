@@ -1,4 +1,4 @@
--module(relatio_data_handler).
+-module(dm_data_handler).
 -behaviour(cowboy_http_handler).
 -export([init/3, handle/2, terminate/2]).
 -compile({parse_transform, seqbind}).
@@ -13,7 +13,7 @@ init({_Any, http}, Req, []) ->
 handle(Req@, State) ->
     {Path, Req@} = cowboy_http_req:path_info(Req@),
     case Path of
-        [<<"v-e-m.gexf">>] ->
+        [<<"deps.gexf">>] ->
             {ok, Req@} = cowboy_http_req:reply(200, [], generate_xml(), Req@),
             {ok, Req@, State}
     end.
@@ -26,13 +26,8 @@ terminate(_Req, _State) ->
 %% ------------------------------------------------------------------
 
 generate_xml() ->
-    {ok, Xref} = xref:start(relatio_ex1),
-%   xref:add_application(Xref, code:lib_dir(gexf)),
-%   xref:add_application(Xref, "/home/user/erlang/database/riak_core"),
-    xref:add_application(Xref, code:lib_dir(mnesia)),
-%   xref:add_application(Xref, code:lib_dir(snmp)),
-    try
-        gexf:to_string(gexf_xref:'e-v-m'(Xref))
-    after
-        xref:stop(Xref)
-    end.
+    FileName = filename:join(code:priv_dir(gitto), "reps.bin"),
+    {ok, RepsBin} = file:read_file(FileName),
+    Xml = gitto_deps_gexf:build_xml(binary_to_term(RepsBin)),
+    gexf:to_string(Xml).
+
