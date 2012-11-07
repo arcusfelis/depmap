@@ -1,7 +1,7 @@
-Relatio
-=======
+Depmap
+======
 
-Web UI for Erlang Xref.
+Dependency analyzer for Erlang.
 
 __License__: [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
 
