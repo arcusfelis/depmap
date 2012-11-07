@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="js/sigma.min.js" type="text/javascript"></script>
+<script src="js/sigma.parseGexf.js" type="text/javascript"></script>
+
+
+<script src="js/jquery-latest.min.js" type="text/javascript"></script>
+<script src="js/jquery.mousewheel.js" type="text/javascript"></script>
+<script src="js/jquery.jscrollpane.js" type="text/javascript"></script>
+<script src="js/mwheelIntent.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+<!--
+function init() {
+  $(".rep_gh_link").on("click.show_node_label", function(e) {
+     e.stopPropagation();
+  });
+
+  var keyCodes = {
+      ESCAPE: 27,
+      H: 72,
+
+      J: 74,
+      K: 75,
+      L: 76,
+
+
+      ONE: 49,
+      NINE: 57,
+      ZERO: 48,
+      PLUS: 61,
+      MINUS: 109,
+      SLASH: 191
+  };
+  var MIN_IMPORTANT_SIZE = 9;
+  var overlayNodeContainer = $("#overlay-nodes");
+  // Add overlay node.
+  function addOverlayNode(node)
+  {
+    var o = $("<div>").addClass("overlay-node")
+          .css("left", node["displayX"]).css("top", node["displayY"]).css("background-color", node.color);
+    overlayNodeContainer.append(o);
+    return o;
+  }
+
+  // Instanciate sigma.js and customize rendering :
+  var sigInst = sigma.init(document.getElementById('graph-main')).drawingProperties({
+    defaultLabelColor: '#fff',
+    defaultLabelSize: 14,
+    defaultLabelBGColor: '#fff',
+    defaultLabelHoverColor: '#000',
+    labelThreshold: 6,
+    defaultEdgeType: 'curve',
+    font: 'DejaVu Sans Mono, Arial'
+  }).graphProperties({
+  }).mouseProperties({
+    maxRatio: 32,
+    minRatio: 0.8
+  });
+
+  sigInst.__proto__.zoomToNode = function(nid, ratio) {
+    var m = sigInst._core.mousecaptor;
+    var s = sigInst._core;
+//  this.position(0,0,1);
+//  this.draw(2,2,2);
+    var nodes = this.getNodes([nid]);
+    var node = nodes[0];
+    if (!node) return;
+    ratio = ratio ? ratio : 16;
+
+//  console.log("node {" + node.displayX + ", " + node.displayY + "}");
+
+    var newX = node.displayX;
+    var newY = node.displayY;
+    // Different formulas for diffenent cases
+    if (ratio == m.ratio)
+    {
+        // TODO: dirty
+        newX = s.width - node.displayX; 
+        newY = s.height - node.displayY;
+    }
+    sigInst.zoomTo(newX, newY, ratio);
+  }
+
+  sigInst.__proto__.pickNode = function(nid) {
+    var s = this._core;
+    switch (typeof(nid))
+    {
+      case "number":
+      case "string":
+        this.iterNodes(function(node) {
+          s.plotter.drawHoverNode(node);
+        }, [nid]);
+        break;
+
+      case "object":
+        s.plotter.drawHoverNode(nid);
+        break;
+      
+      default:
+        console.error("Unknown type");
+    }
+  }
+
+  sigInst.__proto__.unpickNode = function(nid) {
+    this.refresh();
+  }
+
+  sigInst.__proto__.getNodeById = function(nid) {
+      var nodes = this.getNodes([nid]);
+      return nodes[0];
+  }
+
+
+  // elem is a DOM element.
+  // node is a sigma node.
+  function nodeToHtmlLink(si, node, elem, label)
+  {
+    var nid = node.id;
+    var a = $("<a href='#'>").text(label ? label : node.label);
+    a.off(".show_node_label");
+    a.on("click.show_node_label", function(e) {
+      // Capture a Shift and Click event with jQuery
+      if (e.shiftKey) {
+        activateNode({'target': si, 'content': [nid]});
+        return false;
+      }
+      si.zoomToNode(nid);
+      return false;
+    });
+    a.on("mouseleave.show_node_label", function(){ 
+        si.unpickNode(nid);
+    });
+    a.on("mouseenter.show_node_label", function(){ 
+        si.pickNode(nid);
+    });
+    elem.append(a);
+    return elem;
+  }
+
+  function nodeToAuthorHtmlLink(si, node, elem, label)
+  {
+    var nid = node.id;
+    var a = $("<a>").text(label ? label : node.label);
+    a.attr("href", "https://github.com/" + authorName(node));
+    a.attr("target", "_blank");
+    elem.append(a);
+    a.on("click.show_node_label", function(e) {
+       e.stopPropagation();
+    });
+    return elem;
+  }
+
+
+  // Copy color from a node or an edge to DOM element.
+  function colorize(nodeOrEdge, elem)
+  {
+    elem.css("color", nodeOrEdge.color)
+    return elem;
+  }
+
+  var nodeIdsToHtml = function(si, nodes) {
+    var ul = $("<ul>");
+    si.iterNodes(function(node) {
+      var elem = colorize(node, $("<li>"));
+      var li = nodeToHtmlLink(si, node, elem);
+      ul.append(li);
+    }, nodes);
+    return ul;
+  }
+
+  var authorName = function(node) {
+    var fullname = node.label;
+    return fullname.split(" ")[0];
+  }
+
+  var repositoryName = function(node) {
+    var fullname = node.label;
+    return fullname.split(" ")[1];
+  }
+
+  // This function will be called, if a node was clicked.
+  var activateNode = function(event) { 
+    var si = event.target; 
+    var ids = event.content;
+    var rcpnt_node_ids      = [];
+    var donor_node_ids      = [];
+
+    var node_id = ids[0];
+    var node = si.getNodeById(node_id);
+
+    $(".selected_elem_info").hide();
+    var active_header_block;
+    var focused_elem;
+
+    // Change the header
+    var r_elem = $(".rep_name", active_header_block).empty();
+    nodeToHtmlLink(si, node, r_elem, repositoryName(node));
+    var focused_elem = $("a", r_elem);
+
+    var a_elem = $(".author_name", active_header_block).empty();
+    nodeToAuthorHtmlLink(si, node, a_elem, authorName(node));
+
+    $(".rep_gh_link")
+        .attr("href", "https://github.com/" + authorName(node) + 
+                      "/" + repositoryName(node))
+        .attr("target", "_blank");
+
+    si.iterEdges(function(e) {
+        if (~ids.indexOf(e.source)) {
+            // This edge is out.
+            // The selected node calls the iterated node.
+            donor_node_ids.push(e.target);
+        }
+        else if (~ids.indexOf(e.target)) {
+            // This edge is in.
+            // The selected node is called by the iterated node.
+            rcpnt_node_ids.push(e.source);
+        }
+    });
+
+    if (donor_node_ids.length > 0)
+    {
+        var ul_out = nodeIdsToHtml(si, donor_node_ids);
+        $("#directions-list-out").empty().append(ul_out);
+        $("#directions-out").show();
+    }
+    else
+    {
+        $("#directions-out").hide();
+    }
+
+    if (rcpnt_node_ids.length > 0)
+    {
+        var ul_in  = nodeIdsToHtml(si, rcpnt_node_ids);
+        $("#directions-list-in").empty().append(ul_in);
+        $("#directions-in").show();
+    }
+    else
+    {
+        $("#directions-in").hide();
+    }
+    openDirectionSidebar();
+
+    // Set focus
+    focused_elem.focus();
+  }; // end of activateNode
+
+
+  // Parse a GEXF encoded file to fill the graph
+  // (requires "sigma.parseGexf.js" to be included)
+  sigInst.parseGexf('data/deps.gexf');
+
+  // Draw the graph :
+  sigInst.draw();
+
+  // The node was clicked.
+  sigInst.bind('downnodes', activateNode);
+
+
+
+
+  var openDirectionSidebar = function() {
+    $("body").addClass("directions-active"); 
+    activateAutoResizeMonitor($("#graph-directions"));
+  };
+
+  var closeDirectionSidebar = function() {
+    $("body").removeClass("directions-active"); 
+    $(".searching-active #search_field").focus();
+  }
+
+  var closeSearchSidebar = function() {
+    $("body").removeClass("searching-active"); 
+  };
+
+
+  var isDirectionSidebarOpen = function() {
+    return $("body").hasClass("directions-active");
+  };
+
+  var resetScale = function(){ 
+    sigInst.position(0, 0, 1);
+    sigInst.draw(2, 2, 2);
+    sigInst.goTo(0, 0, 1);
+  };
+
+  // Handler for closing the sidebar
+  $("#graph-directions").click(function(e) {
+      closeDirectionSidebar();
+  });
+
+  $("#search-pane").click(function(e) {
+      closeSearchSidebar();
+  });
+
+  var repeatCount = 0;
+  $(document).keydown(function(e) {
+    var m = sigInst._core.mousecaptor;
+    var s = sigInst._core;
+    var kc = e.keyCode;
+    switch (kc) {
+      case keyCodes.ESCAPE:
+        if (isDirectionSidebarOpen())
+          closeDirectionSidebar();
+        else
+          resetScale();
+        break;
+
+      case keyCodes.ZERO:
+        if (repeatCount == 0)
+          resetScale();
+        else
+          repeatCount *= 10;
+        break;
+
+      case keyCodes.H:
+        // right
+        var step = s.width / 150;
+        sigInst.goTo(step * (repeatCount || 1) + m.stageX, m.stageY);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.L:
+        // left
+        var step = s.width / 150;
+        sigInst.goTo(-step * (repeatCount || 1) + m.stageX, m.stageY);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.K:
+        // up
+        var step = s.height / 100;
+        sigInst.goTo(m.stageX, -step * (repeatCount || 1) + m.stageY);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.J:
+        // down
+        var step = s.height / 100;
+        sigInst.goTo(m.stageX, step * (repeatCount || 1) + m.stageY);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.PLUS:
+        var delta = 0.1 * (repeatCount || 1);
+        sigInst.zoomTo(s.width / 2, s.height / 2, m.ratio + delta);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.MINUS:
+        var delta = 0.1 * (repeatCount || 1);
+        sigInst.zoomTo(s.width / 2, s.height / 2, m.ratio - delta);
+        repeatCount = 0;
+        break;
+
+      case keyCodes.SLASH:
+        $("#search_field").focus();
+        // TODO: select old text.
+        // Don't let this char be entrered in the search field.
+        return false;
+        break;
+
+      default:
+
+        if (kc >= keyCodes.ONE && kc <= keyCodes.NINE)
+            repeatCount = repeatCount * 10 + kc - keyCodes.ZERO;
+            
+//      console.log("Key pressed: " + e.keyCode);
+    }
+  });
+
+
+
+
+  // All other nodes will have X and Y beetween -1 .. 1
+  var nextModNodeId = 3;
+  var firstModNodeId = 3;
+
+  $("#graph-main canvas").each(function() {
+    this.addEventListener('dblclick', resetScale);
+  });
+
+
+  $(".header-closed").click(function(e) { 
+      var t = $(e.target);
+      var p = t.parent().addClass("active-block"); 
+      $("a:visible:first", p).focus();
+      return false;
+  });
+
+  $(".header-opened").click(function(e) { 
+      var t = $(e.target);
+      var p = t.parent().removeClass("active-block"); 
+      $("a:visible:first", p).focus();
+      return false;
+   });
+  
+  var tryToSearch = function(e) {
+    var si = sigInst;
+    var needle = e.target.value;
+    var sidebar = $("#search-results");
+
+
+    // skip, if it is too short
+    if (needle.length < 3) {
+      $("body").removeClass("searching-active"); 
+      return;
+    }
+
+    var matched_node_ids = [];
+    si.iterNodes(function(n) {
+      // Is the needle a substring of the label?
+      // indexOf returns -1, if not found.
+      // ~-1 is 0.
+      if (matched_node_ids.length < 100)
+        if (~n.label.indexOf(needle))
+        {
+          matched_node_ids.push(n.id);
+        }
+    });
+
+
+    // Nothing was found
+    if (!matched_node_ids.length) {
+        $("body").removeClass("searching-active"); 
+        return;
+    }
+
+    if (matched_node_ids.length > 0)
+    {
+        var ul = nodeIdsToHtml(si, matched_node_ids);
+        $("#reps-list", sidebar).empty().append(ul);
+        $("#reps", sidebar).show();
+    }
+    else
+    {
+        $("#reps", sidebar).hide();
+    }
+
+    $("body").addClass("searching-active"); 
+
+    activateAutoResizeMonitor($("#search-results"));
+  }; // end of tryToSearch
+
+  $("#search_field").keydown(function(e) {
+    e.stopPropagation();
+    switch (e.keyCode)
+    {
+      case keyCodes.ESCAPE:
+      $("body").removeClass("searching-active"); 
+    }
+  });
+  $("#search_field").keyup(tryToSearch);
+  $("#search-results, #graph-directions").jScrollPane({trackClickRepeatFreq: 20});
+
+    
+  var activateAutoResizeMonitor = function(area) {
+    var win = $(window);
+    var jsp = area.data("jsp");
+    var pane = $(".jspPane", area);
+
+    var windowHeight = win.height();
+    var containerHeight = pane.height();
+    var resized;
+
+    var intId;
+    intId = area.data("activateAutoResizeMonitorId");
+    if (intId)
+        clearInterval(intId);
+
+    jsp.reinitialise();
+    var reinit = function() {
+      jsp.reinitialise();
+      // Return context to initial position, if the horizontal scrollbar was removed.
+      pane.css({left: 0});
+        
+      // Prevent propagation
+      $("div.jspHorizontalBar, div.jspVerticalBar", area).on("click.preventProp", function(e) {
+        return false;
+      });
+    };
+    reinit();
+ 
+    intId = setInterval(function() {
+ 
+      if(windowHeight!=win.height() || containerHeight!=pane.height())
+      {
+        clearTimeout(resized);
+        resized = setTimeout(reinit, 100);
+      }
+ 
+      windowHeight = win.height();
+      containerHeight = pane.height();
+    }, 75);
+
+    area.data("activateAutoResizeMonitorId", intId);
+  };
+
+}
+$(document).ready(init);
+-->
+</script>
+
+<style type="text/css">
+<!--
+  @font-face {
+    font-family: 'DejaVu Sans Mono';
+    font-style: normal;
+    font-weight: 400;
+    src: local('DejaVu Sans Mono'), url(font/DejaVuSansMono.woff) format('woff');
+  }
+
+  body {
+    font-family: DejaVu Sans Mono, Arial;
+    font-size: 13pt;
+    overflow: hidden;
+  }
+
+  /* sigma.js context : */
+  #container {
+    background: #000;
+    height: 100%;
+    overflow: hidden;
+  }
+  #graph-main {
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+  }
+  #graph-directions { 
+    z-index: 9000;
+    background: #000;
+    width: 300px; 
+    top: 0px; 
+    bottom: 0px;
+    position: absolute;
+    right: 0px;
+    color: #FFF;
+    overflow: auto;
+    display: none;
+  }
+
+  .directions-active #graph-directions { 
+    display: block;
+  }
+
+  .rep_name{
+    font-size: 18pt;
+    margin: 0;
+  }
+
+  .author_name{
+    font-size: 12pt;
+    margin: 0;
+    margin-bottom: 10px;
+  }
+
+
+  #search-results {
+    width: 300px; 
+    position: absolute;
+    bottom: 0px; 
+    top: 50px; 
+    color: #FFF;
+    overflow: auto;
+  }
+
+  #search-pane { 
+    display: none;
+    background: #000;
+    width: 300px; 
+    top: 0px; 
+    bottom: 0px; 
+    position: absolute;
+    right: 0px;
+    display: none;
+  }
+
+  .searching-active #search-pane {
+    display: block;
+  }
+
+  .directions-active #search-pane,
+  .directions-active #search_field {
+    display: none;
+  }
+
+  #graph-directions a, #search-results a { 
+      text-decoration: none;
+      color: inherit;
+  }
+
+  #graph-directions a.header-closed,
+  #search-results a.header-closed {
+    color: #C0C0C0;
+  }
+  #graph-directions a.header-opened, 
+  #search-results a.header-opened {
+    color: #FFF;
+  } 
+  html, body
+  {margin: 0; padding: 0; height: 100%;}
+  .disable_mouse_selection {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  .overlay-node {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    margin-top: -5px;
+    z-index: -1;
+    -moz-border-radius: 5px;
+    border-radius: 5px;
+  }
+  .active-reps .overlay-node {
+    z-index: 9050;
+  }
+  .active-hover-reps .overlay-node:hover {
+    z-index: 9500;
+  }
+
+  .selected_elem_info {
+      font-size: 14pt;
+      text-align: right;
+      padding: 6px;
+  }
+  .misc {
+      font-size: 80%;
+      /* For new line */
+      display: block;
+  }
+  #graph-directions ul {
+    margin: 0px;
+    padding: 0px;
+    margin-left: 14pt;
+  }
+
+  .active-block .header-closed {
+    display: none;
+  }
+  .header-closed {
+    display: block;
+  }
+
+  .active-block .header-opened {
+    display: block;
+  }
+  .header-opened {
+    display: none;
+  }
+
+  .active-block .content-block {
+    display: block;
+  }
+  .content-block {
+    display: none;
+  }
+
+  #search_field {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 8000;
+    background: #000;
+    color: #CCC;
+    border: 1px solid #CCC;
+  }
+
+  .searching-active #search_field {
+    z-index: 9500;
+  }
+
+  #search_field:focus {
+    border: 1px solid #FFF;
+  }
+    
+a.rep_gh_link {
+    cursor: pointer;
+    color: #CCC;
+}
+
+
+/*
+ * CSS Styles that are needed by jScrollPane for it to operate correctly.
+ *
+ * Include this stylesheet in your site or copy and paste the styles below into your stylesheet - jScrollPane
+ * may not operate correctly without them.
+ */
+
+.jspContainer
+{
+    overflow: hidden;
+    position: relative;
+}
+
+.jspPane
+{
+    position: absolute;
+}
+
+.jspVerticalBar
+{
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+}
+
+.jspHorizontalBar
+{
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+}
+
+.jspVerticalBar *,
+.jspHorizontalBar *
+{
+    margin: 0;
+    padding: 0;
+}
+
+.jspCap
+{
+    display: none;
+}
+
+.jspHorizontalBar .jspCap
+{
+    float: left;
+}
+
+.jspTrack
+{
+    background: #000;
+    position: relative;
+
+    /* Opacity */
+    zoom: 1;
+    filter: alpha(opacity=80);
+    opacity: 0.8;
+}
+
+.jspTrack:hover
+{
+    filter: alpha(opacity=90);
+    opacity: 0.9;
+}
+
+.jspDrag
+{
+    background: #FFF;
+    position: relative;
+    top: 0;
+    left: 0;
+    cursor: pointer;
+}
+
+.jspHorizontalBar .jspTrack,
+.jspHorizontalBar .jspDrag
+{
+    float: left;
+    height: 100%;
+}
+
+.jspCorner
+{
+    background: #000;
+    float: left;
+    height: 100%;
+}
+
+/* Yuk! CSS Hack for IE6 3 pixel bug :( */
+* html .jspCorner
+{
+    margin: 0 -3px 0 0;
+}
+
+-->
+</style>
+
+</head>
+<body>
+  <div id="container">
+    <div id="graph-main"></div>
+    <div id="graph-directions">
+        <h1 class="rep_name">RepName</h1>
+        <h2 class="author_name" title="Show author's profile on github.com">Author</h2>
+
+        <a class="rep_gh_link">Show code on github.com</a>
+
+        <div id="directions-out" class="active-block">
+            <a href="#" class="header-closed">Depends on...</a>
+            <a href="#" class="header-opened">Depends on:</a>
+            <div id="directions-list-out" class="content-block"></div>
+        </div>
+
+        <div id="directions-in" class="active-block">
+            <a href="#" class="header-closed">Used by...</a>
+            <a href="#" class="header-opened">Used by:</a>
+            <div id="directions-list-in" class="content-block"></div>
+        </div>
+    </div>
+
+    <div id="search-pane">
+        <div id="search-results">
+            <div id="reps" class="active-block">
+                <a href="#" class="header-closed">Repositories...</a>
+                <a href="#" class="header-opened">Repositories:</a>
+                <div id="reps-list" class="content-block"></div>
+            </div>
+        </div>
+    </div>
+
+    <input type="text" id="search_field" />
+
+    <div id="overlay-nodes"></div>
+  </div>
+</body>
+</html>
