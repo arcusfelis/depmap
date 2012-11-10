@@ -5,7 +5,7 @@ Dependency analyzer for Erlang.
 
 **License**: MIT
 
-**Author**: Uvarov Michael (freeakk@gmail.com)
+**Author**: Uvarov Michael (arcusfelis@gmail.com)
 
 
 Installation and building
@@ -20,16 +20,21 @@ Keyboard Shortcuts
 Keys h, j, k, l are used for moving as in Vim:
 
 - ``h`` - left;
-- ``j`` - down;
-- ``k`` - top;
+- ``j`` - up;
+- ``k`` - down;
 - ``l`` - right.
 
-- ``10h`` means repeat the "move to left" command ten times;
+
+- ``10h`` - repeat the "move to left" command ten times;
+
 
 - ``+`` - zoom in;
 - ``-`` - zoom out;
 - ``0`` - reset scaling;
 
-- ``Escape`` - close sidebars;
+
+- ``Escape`` - close sidebars (or just click on them);
+
 
 - ``/`` - focus the search field.
+
