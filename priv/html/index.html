@@ -220,6 +220,15 @@ function init() {
         }
     });
 
+    // TODO: move this to a separate fun
+    si.iterNodes(function(n) {
+        if (n.id == node_id || ~rcpnt_node_ids.indexOf(n.id) || ~donor_node_ids.indexOf(n.id))
+            n.hidden = false;
+        else
+            n.hidden = true;
+    });
+    sigInst.draw();
+
     if (donor_node_ids.length > 0)
     {
         var ul_out = nodeIdsToHtml(si, donor_node_ids);
@@ -273,6 +282,12 @@ function init() {
       return this.position(0,0,1).draw();
   };
 
+  sigma.publicPrototype.showAllNodes = function() {
+     this.iterNodes(function(n) {
+        n.hidden = false;
+     });
+  }
+
   sigInst.sortedLayout();
 
   // The node was clicked.
@@ -289,15 +304,31 @@ function init() {
   var closeDirectionSidebar = function() {
     $("body").removeClass("directions-active"); 
     $(".searching-active #search_field").focus();
+    if (isSearchingSidebarOpen()) {
+      $("#search_field").keyup();
+    }
+    else
+    {
+      sigInst.showAllNodes();
+      sigInst.draw();
+    }
   }
 
-  var closeSearchSidebar = function() {
+  var closeSearchSidebar = function(resetFocus) {
     $("body").removeClass("searching-active"); 
+    if (resetFocus)
+      $("#search_field").blur();
+    sigInst.showAllNodes();
+    sigInst.draw();
   };
 
 
   var isDirectionSidebarOpen = function() {
     return $("body").hasClass("directions-active");
+  };
+
+  var isSearchingSidebarOpen = function() {
+    return $("body").hasClass("searching-active");
   };
 
   var resetScale = function(){ 
@@ -418,6 +449,7 @@ function init() {
    });
   
   var tryToSearch = function(e) {
+
     var si = sigInst;
     var needle = e.target.value;
     var sidebar = $("#search-results");
@@ -425,26 +457,30 @@ function init() {
 
     // skip, if it is too short
     if (needle.length < 3) {
-      $("body").removeClass("searching-active"); 
+      closeSearchSidebar();
       return;
     }
 
+    sigInst.draw();
     var matched_node_ids = [];
     si.iterNodes(function(n) {
       // Is the needle a substring of the label?
       // indexOf returns -1, if not found.
       // ~-1 is 0.
-      if (matched_node_ids.length < 100)
         if (~n.label.indexOf(needle))
         {
-          matched_node_ids.push(n.id);
-        }
+          if (matched_node_ids.length < 100)
+            matched_node_ids.push(n.id);
+
+          n.hidden = false;
+        } else
+          n.hidden = true;
     });
 
 
     // Nothing was found
     if (!matched_node_ids.length) {
-        $("body").removeClass("searching-active"); 
+        closeSearchSidebar();
         return;
     }
 
@@ -462,6 +498,7 @@ function init() {
     $("body").addClass("searching-active"); 
 
     activateAutoResizeMonitor($("#search-results"));
+    si.draw();
   }; // end of tryToSearch
 
   $("#search_field").keydown(function(e) {
@@ -469,7 +506,7 @@ function init() {
     switch (e.keyCode)
     {
       case keyCodes.ESCAPE:
-      $("body").removeClass("searching-active"); 
+        closeSearchSidebar(true);
     }
   });
   $("#search_field").keyup(tryToSearch);
