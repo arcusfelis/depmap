@@ -50,7 +50,7 @@ function init() {
     defaultLabelSize: 14,
     defaultLabelBGColor: '#fff',
     defaultLabelHoverColor: '#000',
-    labelThreshold: 6,
+    labelThreshold: 5,
     defaultEdgeType: 'curve',
     font: 'DejaVu Sans Mono, Arial'
   }).graphProperties({
@@ -254,6 +254,26 @@ function init() {
 
   // Draw the graph :
   sigInst.draw();
+
+  // The following method will parse the related sigma instance nodes
+  // and set their positions around a circle:
+  sigma.publicPrototype.sortedLayout = function() {
+      var HorSpace = 10,
+          VerSpace = 10,
+          i = 0,
+          L = this.getNodesCount(),
+          Columns = Math.sqrt(L);
+       
+      this.iterNodes(function(n){
+              n.x = i % Columns * HorSpace;
+              n.y = i / Columns * VerSpace + (i % Columns) * 3;
+              i++;
+              });
+       
+      return this.position(0,0,1).draw();
+  };
+
+  sigInst.sortedLayout();
 
   // The node was clicked.
   sigInst.bind('downnodes', activateNode);
