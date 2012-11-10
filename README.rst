@@ -24,17 +24,20 @@ Keys h, j, k, l are used for moving as in Vim:
 - ``k`` - down;
 - ``l`` - right.
 
-
-- ``10h`` - repeat the "move to left" command ten times;
-
+Scaling:
 
 - ``+`` - zoom in;
 - ``-`` - zoom out;
 - ``0`` - reset scaling;
 
+Typing a number before a motion repeats it that many times.
+
+- ``10h`` - repeat the "move to left" command ten times;
+- ``10+`` - repeat zooming.
+
+
+Widgets:
 
 - ``Escape`` - close sidebars (or just click on them);
-
-
-- ``/`` - focus the search field.
+- ``/`` - focus on the search field.
 
